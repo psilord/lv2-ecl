@@ -1,0 +1,40 @@
+#!/usr/local/bin/ecl -shell
+
+(defun get-command-line-arguments ()
+  ;; Start from 3, because we get rid of
+  ;; "/usr/local/bin/ecl" "-shell" "./compile-lisp.lsh"
+  (loop :for i :from 3 :below (si:argc) :collect (si:argv i)))
+
+;; First argument is target library name, the rest are lisp files.
+;; Second is init-name for the library
+;; The rest are the lisp files to compile and put into the library.
+
+(defun main ()
+  (let* ((args (get-command-line-arguments))
+         (library (pop args))
+         (init-name (pop args))
+         (source-files args)
+         (object-files (mapcar #'(lambda (file)
+                                   (concatenate
+                                    'string
+                                    (subseq file 0 (- (length file) 5))
+                                    ".o"))
+                               source-files)))
+
+    ;; compile all the files into object files.
+    (dolist (file source-files)
+      (compile-file file :system-p t))
+
+    ;; then build the library.
+    ;; We do this intern trick here, because the symbol
+    ;; c:build-static-library is in a package which does not exist at the
+    ;; read time of this file. So, this defers the calling of it until the
+    ;; package exists.
+    (funcall (intern (string-upcase "build-static-library") :c)
+             library
+             :lisp-files object-files
+             :init-name init-name)))
+
+
+(main)
+
