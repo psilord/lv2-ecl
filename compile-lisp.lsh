@@ -21,9 +21,10 @@
                                     ".o"))
                                source-files)))
 
+	(with-compilation-unit ()
     ;; compile all the files into object files.
     (dolist (file source-files)
-      (compile-file file :system-p t))
+      (compile-file file :system-p t)))
 
     ;; then build the library.
     ;; We do this intern trick here, because the symbol

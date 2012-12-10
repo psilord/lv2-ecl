@@ -1,9 +1,55 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ecl/ecl.h>
+#include "lv2/lv2plug.in/ns/lv2core/lv2.h"
+
+static int g_cl_booted = 0;
+
+void initialize_ecl(void) 
+{
+	int fake_argc = 1;
+	char *fake_argv[] = {"InternalPlugin", NULL};
+
+	if (g_cl_booted == 0) {
+		// Initialize ECL
+		cl_boot(fake_argc, fake_argv);
+
+		// Use the UFFI package before we do anything.
+		cl_use_package(1, (cl_find_package(ecl_make_keyword("UFFI"))));
+
+		// Initalize the Common Lisp plugin library.
+		// Magic name is previously known 
+		extern void I_libfoo(cl_object);
+		read_VV(OBJNULL, I_libfoo);
+
+		g_cl_booted = 1;
+	}
+}
+
+// C entry point. 
+const LV2_Descriptor*
+lv2_descriptor(uint32_t index)
+{
+	initialize_ecl();
+
+	// Trampoline this to the ECL side, then unpack the resultant
+	// return value into something suitable for the caller.
+
+	cl_object obj = cl_funcall(2,
+		c_string_to_object("lv2-descriptor"),
+		MAKE_FIXNUM(index));
+
+	printf("C: lv2_descriptor got from lisp:");
+	cl_pprint(1, obj);
+	cl_princ(1, c_string_to_object("#\\Newline"));
+
+	// Convert obj to something meaningful and return it
+
+
+	return (LV2_Descriptor*) NULL;
+}
 
 /*
-#include "lv2/lv2plug.in/ns/lv2core/lv2.h"
 
 #define AMP_URI "http://lv2plug.in/plugins/eg-amp"
 
@@ -19,20 +65,6 @@ static const LV2_Descriptor descriptor = {
 	extension_data
 };
 
-// entry point. 
-const LV2_Descriptor*
-lv2_descriptor(uint32_t index)
-{
-
-	// See about trampolining this too.
-
-	switch (index) {
-	case 0:
-		return &descriptor;
-	default:
-		return NULL;
-	}
-}
 
 
 // Create a new plugin instance.
@@ -43,12 +75,6 @@ instantiate(const LV2_Descriptor*     descriptor,
             const LV2_Feature* const* features)
 {
 
-	// Initialize the lisp instance.
-	cl_boot(argc, argv);
-
-	// Magic name is previously known 
-	extern void I_libfoo(cl_object);
-	read_VV(OBJNULL, I_libfoo);
 
 	// Call the lisp instantiate function.
 
@@ -107,6 +133,16 @@ extension_data(const char* uri)
 
 int main(int argc, char **argv)  
 {
+	const LV2_Descriptor *lv2_desc = NULL;
+
+	// Let's mimic how the plugin will be called.
+
+	// This is the first call into the plugin, it is here that we 
+	// initialize ECL and invoke the Lisp function of the same name.
+	lv2_desc = lv2_descriptor(0);
+
+
+
 
 	/* execute something out of the library we just initialized */
 	cl_object num3 = cl_funcall(3,c_string_to_object("doit"),

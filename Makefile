@@ -4,7 +4,7 @@ ECL = ecl
 # Add source files in here that I want to compile...
 SRCS = lv2-ecl.c 
 
-LSRCS = plugin.lisp
+LSRCS = plugin.lisp amp.lisp
 
 # name of the created program
 TARGET = de
