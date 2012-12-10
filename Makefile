@@ -16,11 +16,11 @@ TARGET_LIB = lib$(TARGET_LISP_LIB)
 # Flags I wish to define on the compile line.
 DEF_FLAGS = -g -Wall -fPIC `ecl-config --cflags`
 
-# Where to find various libraries.
-LINKPATH = `ecl-config --ldflags`
-
 # Where are the API header files I'm using?
-INCLUDEPATH = -I/usr/local/include 
+INCLUDEPATH = -I/usr/local/include  -I/usr/local/include/lv2
+
+# Where to find various libraries.
+LINKPATH = -L /usr/local/lib `ecl-config --ldflags`
 
 # Various libraries I'm going to need...
 LIBS = $(TARGET_LIB) `ecl-config --libs`
