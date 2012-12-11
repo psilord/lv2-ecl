@@ -11,7 +11,7 @@ Using ECL Common Lisp as a plugin language for LV2 audio plugins.
 ;;; 
 ;;; The Original Code is lv2-ecl.
 ;;; 
-;;; The Initial Developer of the Original Code is Peter Keller and Ken Hahn. 
+;;; The Initial Developer of the Original Code is Peter Keller and Kenneth Hahn. 
 ;;; Portions created by the Initial Developer are 
 ;;; Copyright (C) 2012, Initial Developer. 
 ;;; All Rights Reserved.
