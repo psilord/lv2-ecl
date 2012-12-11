@@ -2,6 +2,8 @@
   (apply #'format t (concatenate 'string "LISP Plugin: " fmt) args)
   (finish-output))
 
+
+
 (defun plugin1-instantiate (descriptor rate bundle_path features)
   (logit "plugin1-instantiate: ~A ~A ~A ~A~%"
          descriptor rate bundle_path features))

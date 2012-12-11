@@ -212,11 +212,17 @@ instantiate(const LV2_Descriptor*     descriptor,
 {
 	int lv2_desc_index;
 
-	printf("Instantiate called: %p %f %s %p\n", 
-		descriptor, rate, bundle_path, features);
 	
 	// lookup the DescAssoc with this descripter pointer
 	lv2_desc_index = get_lv2_desc_index(descriptor);
+
+	printf("Instantiate for LV2_Desc called:\n"
+		"\tdesc_index = %d\n"
+		"\tdescriptor = %p\n"
+		"\trate = %f\n"
+		"\tbundle path = %s\n"
+		"\tfeatures array = %p\n", 
+		lv2_desc_index, descriptor, rate, bundle_path, features);
 
 	// Call the mirrored lisp instantiate function on the associated
 	// lisp version of the lv2-descriptor. This is going to return a
