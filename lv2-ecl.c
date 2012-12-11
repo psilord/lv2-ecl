@@ -239,7 +239,11 @@ connect_port(LV2_Handle instance,
              uint32_t   port,
              void*      data)
 {
-	
+	ecl_import_current_thread(ECL_NIL, ECL_NIL);
+
+	// stuff
+
+	ecl_release_current_thread();
 }
 
 // Initialise and prepare the plugin instance for running.
@@ -253,7 +257,9 @@ activate(LV2_Handle instance)
 static void
 run(LV2_Handle instance, uint32_t n_samples)
 {
+	ecl_import_current_thread(ECL_NIL, ECL_NIL);
 	// Do something
+	ecl_release_current_thread();
 }
 
 // Finish running (counterpart to activate()).
@@ -284,7 +290,7 @@ int main(int argc, char **argv)
 	int i, j;
 
 	int num_descriptors = 10;  // try for ten, resets to whatever we get
-	int num_handles_per_descriptor = 10; // fixed.
+	int num_handles_per_descriptor = 3; // fixed.
 
 	const LV2_Descriptor **lv2_desc = 
 		malloc(sizeof(LV2_Descriptor*) * num_descriptors);

@@ -75,8 +75,7 @@
    :lv2-extension-data #'plugin2-extension-data))
 
 (defun lv2-descriptor (index)
-  (format t "lv2-descriptor called with argument: ~D~%" index)
-  (finish-output)
+  (logit "lv2-descriptor called with argument: ~D~%" index)
   (cond
     ((= index 0)
      *plugin0*)
