@@ -31,9 +31,6 @@ LIBS = $(TARGET_LIB) `ecl-config --libs`
 
 CFLAGS = $(DEF_FLAGS) $(INCLUDEPATH)
 
-%.o : %.lisp
-	$(ECL) -s -compile $< -o $@
-
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 

@@ -40,7 +40,10 @@ typedef struct _HandleDescAssoc
 
 	// Something we need to associate to which plugin desc which 
 	// ultimately produced it.
-	LV2_Handle instance;
+	LV2_Handle handle;
+
+	// The handle
+	cl_object lisp_handle;
 
 } HandleDescAssoc;
 
@@ -92,7 +95,7 @@ static void initialize_plugin_internals(void)
 		for (i = 0; i < NUM_DESCRIPTORS * NUM_INSTANCES; i++) {
 			g_hdassoc[i].initialized = FALSE;
 			g_hdassoc[i].lv2_desc_index = NONE;
-			g_hdassoc[i].instance = NULL;
+			g_hdassoc[i].handle = NULL;
 		}
 		g_hdassoc_initialized = TRUE;
 
@@ -144,14 +147,24 @@ static void associate_lv2_and_lisp_descs(int index, cl_object lisp_obj)
 	g_plassoc[index].lisp_lv2_desc = lisp_obj;
 }
 
+// given an index, return the address of the lv2 descriptor from there.
 static LV2_Descriptor* get_lv2_desc_address(int index)
 {
 	return &g_plassoc[index].lv2_desc;
 }
 
-static int get_lv2_desc_index(LV2_Descriptor *lv2_desc)
+// given a lv2_desc pointer, return the index associated with it.
+static int get_lv2_desc_index(const LV2_Descriptor *lv2_desc)
 {
-	return 0;
+	int i;
+
+	for (i = 0; i < NUM_DESCRIPTORS; i++) {
+		if (&g_plassoc[i].lv2_desc == lv2_desc) {
+			return i;
+		}
+	}
+
+	return NONE;
 }
 
 
@@ -202,10 +215,12 @@ instantiate(const LV2_Descriptor*     descriptor,
 	printf("Instantiate called: %p %f %s %p\n", 
 		descriptor, rate, bundle_path, features);
 	
-	// lookup the DescAssoc with this descriptoer pointer
+	// lookup the DescAssoc with this descripter pointer
+	lv2_desc_index = get_lv2_desc_index(descriptor);
 
-
-	// Call the lisp instantiate function.
+	// Call the mirrored lisp instantiate function on the associated
+	// lisp version of the lv2-descriptor. This is going to return a
+	// cl_object that represents an LV2_Handle.
 
 	// Find a free instance in the array and fill it, returning the
 	// pointer to the LV2_Descriptor in it.
