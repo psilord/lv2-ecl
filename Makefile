@@ -1,13 +1,13 @@
 CC = gcc
 ECL = ecl
 
-# Add source files in here that I want to compile...
-SRCS = lv2-ecl.c 
-
-LSRCS = plugin.lisp amp.lisp
-
 # name of the created program
 TARGET = de
+
+DRIVER_CSRCS = main.c
+
+PLUGIN_CSRCS = lv2-ecl.c
+PLUGIN_LSRCS = plugin.lisp amp.lisp
 
 TARGET_LISP_LIB = foo.a
 TARGET_LISP_LIB_INIT = I_libfoo
@@ -34,21 +34,26 @@ CFLAGS = $(DEF_FLAGS) $(INCLUDEPATH)
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-OBJS := $(patsubst %.c,%.o,$(SRCS)) $(patsubst %.lisp,%.o,$(LSRCS))
+DRIVER_OBJS := $(patsubst %.c,%.o,$(DRIVER_CSRCS))
 
-$(TARGET): .autodepfile $(TARGET_LIB) $(OBJS)
-	$(CC) $(CFLAGS) $(LINKPATH) $(OBJS) $(LIBS) -o $(TARGET)
+PLUGIN_COBJS := $(patsubst %.c,%.o,$(PLUGIN_CSRCS))
+PLUGIN_LOBJS := $(patsubst %.lisp,%.o,$(PLUGIN_LSRCS))
+PLUGIN_OBJS := $(PLUGIN_COBJS) $(PLUGIN_LOBJS)
 
-$(TARGET_LIB): $(LSRCS)
-	./compile-lisp.lsh $(TARGET_LISP_LIB) $(TARGET_LISP_LIB_INIT) $(LSRCS)
+$(TARGET): .autodepfile $(DRIVER_OBJS) $(TARGET_LIB)
+	$(CC) $(CFLAGS) $(LINKPATH) $(DRIVER_OBJS) $(LIBS) -o $(TARGET)
+
+$(TARGET_LIB): $(PLUGIN_COBJS) $(PLUGIN_LSRCS)
+	./compile-lisp.lsh $(TARGET_LISP_LIB) $(TARGET_LISP_LIB_INIT) $(PLUGIN_LSRCS)
+	ar rs $(TARGET_LIB) $(PLUGIN_COBJS)
 
 .PHONY: clean
 clean:
-	- rm -f $(TARGET) $(TARGET_LIB) core a.out $(OBJS) gmon.out .depfile .autodepfile
+	- rm -f $(TARGET) $(TARGET_LIB) $(DRIVER_OBJS) $(PLUGIN_OBJS) core aout gmon.out .depfile .autodepfile
 
 # This is set up with the dependancies and file name such that make doesn't
 # try and rebuild the depfile for stuff like make clean...
-.autodepfile: $(SRCS)
+.autodepfile: $(DRIVER_CSRCS) $(PLUGIN_CSRCS)
 	$(CC) -MM $(CFLAGS) $^ > .depfile
 	touch .autodepfile
 

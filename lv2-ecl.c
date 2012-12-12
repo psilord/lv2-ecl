@@ -1,74 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ecl/ecl.h>
 #include "lv2/lv2plug.in/ns/lv2core/lv2.h"
+#include "lv2-ecl-internal.h"
 
-#define TRUE 1
-#define FALSE 0
-// What I return as an index for things in arrays when I can't find a good one.
-#define NONE -1
+// move to lisp side.
+#define AMP_URI "http://lv2plug.in/plugins/eg-amp"
 
-// I choose to use arrays for things instead of hash-tables. This reduces the
-// code I have to write, but introduces limitations to the number of existing
-// objects.
-
-// There can be this many total descriptors
-#define NUM_DESCRIPTORS 1024
-// Each descriptr can make this number of instances of something.
-#define NUM_INSTANCES 1024
-
-typedef struct _DescAssoc
-{
-	int initialized;
-
-	// The C descriptor we're going to give to the caller.
-	LV2_Descriptor lv2_desc;
-
-	// The association with the lisp version of it.
-	cl_object lisp_lv2_desc;
-
-} DescAssoc;
-
-// We need to reverse map an LV2_Handle to the LV2_Description type which
-// ultimately produced it.
-typedef struct _HandleDescAssoc
-{
-	int initialized;
-
-	// Which index in the DescAssoc array made this instance?
-	int lv2_desc_index;
-
-	// Something we need to associate to which plugin desc which 
-	// ultimately produced it.
-	LV2_Handle handle;
-
-	// The handle
-	cl_object lisp_handle;
-
-} HandleDescAssoc;
-
-// prototypes
-const LV2_Descriptor* lv2_descriptor(uint32_t index);
-static LV2_Handle instantiate(const LV2_Descriptor *descriptor, 
-		double rate, const char* bundle_path,
-		const LV2_Feature* const* features);
-static void connect_port(LV2_Handle instance, uint32_t port, void *data);
-static void activate(LV2_Handle instance);
-static void run(LV2_Handle instance, uint32_t n_samples);
-static void deactivate(LV2_Handle instance);
-static void cleanup(LV2_Handle instance);
-static const void* extension_data(const char* uri);
-static void associate_lv2_and_lisp_descs(int index, cl_object lisp_obj);
-static LV2_Descriptor* get_lv2_desc_address(int index);
-
-// dumb global variables
 static DescAssoc g_plassoc[NUM_DESCRIPTORS];
-static HandleDescAssoc g_hdassoc[NUM_DESCRIPTORS * NUM_INSTANCES];
+static HandleDescAssoc g_hdassoc[NUM_INSTANCES];
 static int g_plassoc_initialized = FALSE;
 static int g_hdassoc_initialized = FALSE;
 
 static int g_cl_booted = FALSE;
 
+// Take a string, and return a malloced string which is what was passed in,
+// but with the literal " " quotes around it. You must free the memory
+// when done with it.
+static char* stringify(const char *string)
+{
+	char *str = NULL;
+	
+	str = calloc(strlen(string) + 2, sizeof(char));
+	strcpy(str, "\"");
+	strcat(str, string);
+	strcat(str, "\"");
+	return str;
+}
 
 static void initialize_plugin_internals(void)
 {
@@ -92,10 +51,14 @@ static void initialize_plugin_internals(void)
 	}
 
 	if (g_hdassoc_initialized == FALSE) {
-		for (i = 0; i < NUM_DESCRIPTORS * NUM_INSTANCES; i++) {
+		for (i = 0; i < NUM_INSTANCES; i++) {
 			g_hdassoc[i].initialized = FALSE;
 			g_hdassoc[i].lv2_desc_index = NONE;
-			g_hdassoc[i].handle = NULL;
+
+			// initialize the handle to a unique value, it doesn't matter what
+			// the bit pattern is here, only that they are unique from all the
+			// rest. Yes, I know (void*)0 is NULL, but it doesn't matter.
+			g_hdassoc[i].handle = (void*)i;
 		}
 		g_hdassoc_initialized = TRUE;
 
@@ -167,6 +130,29 @@ static int get_lv2_desc_index(const LV2_Descriptor *lv2_desc)
 	return NONE;
 }
 
+static DescAssoc* get_desc_assoc_at_index(int index)
+{
+	return &g_plassoc[index];
+}
+
+
+// return an index to a usable HandleDescAssoc structure.
+static int allocate_new_lv2_handle(void)
+{
+	int i;
+
+	for (i = 0; i < NUM_INSTANCES; i++) {
+		if (g_hdassoc[i].initialized == FALSE) {
+			g_hdassoc[i].initialized = TRUE;
+			printf("Picked index: %d\n", i);
+			return i;
+		}
+	}
+
+	return NONE;
+}
+
+
 
 // C entry point first called by application. 
 const LV2_Descriptor*
@@ -201,7 +187,6 @@ lv2_descriptor(uint32_t index)
 	return get_lv2_desc_address(desc_index);
 }
 
-#define AMP_URI "http://lv2plug.in/plugins/eg-amp"
 
 // Create a new plugin instance.
 static LV2_Handle
@@ -210,11 +195,13 @@ instantiate(const LV2_Descriptor*     descriptor,
             const char*               bundle_path,
             const LV2_Feature* const* features)
 {
+	char *real_string = NULL;
 	int lv2_desc_index;
+	DescAssoc *da = NULL;
 
-	
 	// lookup the DescAssoc with this descripter pointer
 	lv2_desc_index = get_lv2_desc_index(descriptor);
+	da = get_desc_assoc_at_index(lv2_desc_index);
 
 	printf("Instantiate for LV2_Desc called:\n"
 		"\tdesc_index = %d\n"
@@ -224,9 +211,32 @@ instantiate(const LV2_Descriptor*     descriptor,
 		"\tfeatures array = %p\n", 
 		lv2_desc_index, descriptor, rate, bundle_path, features);
 
-	// Call the mirrored lisp instantiate function on the associated
+	// Call the mirrored lisp instantiate function from the associated
 	// lisp version of the lv2-descriptor. This is going to return a
 	// cl_object that represents an LV2_Handle.
+
+	// first, get the function we need to call from the right lisp lv2
+	// descriptor.
+	cl_object lisp_instantiate_function = 
+		cl_funcall(2,
+			c_string_to_object("lv2-instantiate"),
+			da->lisp_lv2_desc);
+
+	
+	// Then call it, passing the usual stuff. lisp will return to us the
+	// handle it wants back.
+	real_string = stringify(bundle_path);
+	cl_object lisp_handle =
+		cl_funcall(5,
+			lisp_instantiate_function,
+			da->lisp_lv2_desc,
+			ecl_make_double_float(rate),
+			c_string_to_object(real_string),
+			Cnil);
+	free(real_string);
+
+	// Associate the lisp_handle with a duck handle we're going to give to the
+	// TODO
 
 	// Find a free instance in the array and fill it, returning the
 	// pointer to the LV2_Descriptor in it.
@@ -283,70 +293,3 @@ extension_data(const char* uri)
 	// This plugin has no extension data.
 	return NULL;
 }
-
-// Drive the plugin interface and see what it does.
-int main(int argc, char **argv)  
-{
-	int i, j;
-
-	int num_descriptors = 10;  // try for ten, resets to whatever we get
-	int num_handles_per_descriptor = 3; // fixed.
-
-	const LV2_Descriptor **lv2_desc = 
-		malloc(sizeof(LV2_Descriptor*) * num_descriptors);
-
-	// Let's mimic how the plugin will be called.
-
-	for (i = 0; i < num_descriptors; i++) {
-		// call the "entry point" to the plugin.
-		lv2_desc[i] = lv2_descriptor(i);
-		printf("LV2_Descriptor: %p\n", lv2_desc[i]);
-		if (lv2_desc[i] == NULL) {
-			// Stop whenever the plugin wants us to stop or we hit the
-			// maximum number.
-			num_descriptors = i;
-			printf("Done getting %d descriptors!\n", num_descriptors);
-			break;
-		}
-	}
-
-	// Now, instantiate exactly X objects for each defined plugin
-
-	LV2_Handle **phandles = malloc(sizeof(LV2_Handle) * num_descriptors);
-
-	for (i = 0; i < num_descriptors; i++) {
-		phandles[i] = malloc(sizeof(LV2_Handle) * num_handles_per_descriptor);
-
-		// and then ask for X real handles from the specific plugin!
-		for (j = 0; j < num_handles_per_descriptor; j++) {
-			LV2_Handle *handle = phandles[i];
-			handle[j] = 
-			lv2_desc[i]->instantiate(lv2_desc[i], 2.4, "/some/path", NULL);
-		}
-	}
-
-
-	/* 
-
-	// test execute something out of the library we just initialized
-	cl_object num3 = cl_funcall(3,c_string_to_object("doit"),
-		MAKE_FIXNUM(10), MAKE_FIXNUM(20));
-
-	cl_princ(1, num3);
-	cl_princ(1, c_string_to_object("#\\Newline"));
-
-	*/
-
-	printf("Shutting it all down.\n");
-	cl_shutdown();
-
-	return EXIT_SUCCESS;
-}
-
-
-
-static LV2_Handle instantiate(const LV2_Descriptor *descriptor, 
-		double rate, const char* bundle_path,
-		const LV2_Feature* const* features);
-
-
