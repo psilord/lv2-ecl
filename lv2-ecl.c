@@ -38,7 +38,8 @@ static void initialize_plugin_internals(void)
 			g_plassoc[i].initialized = FALSE;
 
 			// Each desc always points to the same C functions in this api.
-			// This basically never changes.
+			// We do this because we inverse delegate to a lisp object which
+			// should handle this object.
 			g_plassoc[i].lv2_desc.instantiate = instantiate;
 			g_plassoc[i].lv2_desc.connect_port = connect_port;
 			g_plassoc[i].lv2_desc.activate = activate;
@@ -86,6 +87,10 @@ static void initialize_ecl(void)
 	}
 }
 
+// ///////////////////////////////////////////////////////////////////////
+// Stuff to deal with the g_plassoc array
+// ///////////////////////////////////////////////////////////////////////
+
 // search the g_plassoc table and return me an index into the
 // AssocDesc association array, or 
 // 
@@ -96,7 +101,6 @@ static int allocate_new_lv2_descriptor(void)
 	for (i = 0; i < NUM_DESCRIPTORS; i++) {
 		if (g_plassoc[i].initialized == FALSE) {
 			g_plassoc[i].initialized = TRUE;
-			printf("Picked index: %d\n", i);
 			return i;
 		}
 	}
@@ -135,6 +139,9 @@ static DescAssoc* get_desc_assoc_at_index(int index)
 	return &g_plassoc[index];
 }
 
+// ///////////////////////////////////////////////////////////////////////
+// Stuff to deal with g_hdassoc array
+// ///////////////////////////////////////////////////////////////////////
 
 // return an index to a usable HandleDescAssoc structure.
 static int allocate_new_lv2_handle(void)
@@ -144,7 +151,6 @@ static int allocate_new_lv2_handle(void)
 	for (i = 0; i < NUM_INSTANCES; i++) {
 		if (g_hdassoc[i].initialized == FALSE) {
 			g_hdassoc[i].initialized = TRUE;
-			printf("Picked index: %d\n", i);
 			return i;
 		}
 	}
@@ -152,9 +158,31 @@ static int allocate_new_lv2_handle(void)
 	return NONE;
 }
 
+// This is so when the host give us just a handle, we can figure out which
+// lv2_descriptor's instantiate method created it so we can trampoline it
+// to the correct lisp function.
+static void associate_lv2_handle_to_lv2_desc(int lv2_handle_index, 
+		int lv2_desc_index, cl_object lisp_handle)
+{
+	HandleDescAssoc *hda = NULL;
 
+	hda = &g_hdassoc[lv2_handle_index];
 
-// C entry point first called by application. 
+	hda->lv2_desc_index = lv2_desc_index;
+	hda->lisp_handle = lisp_handle;
+}
+
+// This is the thing we end up giving back to the host which we use to 
+// identify the instance later.
+static LV2_Handle get_lv2_handle_address(int index) 
+{
+	return g_hdassoc[index].handle;
+}
+
+// ///////////////////////////////////////////////////////////////////////
+// C LV2 entry point first called by the host.
+// ///////////////////////////////////////////////////////////////////////
+
 const LV2_Descriptor*
 lv2_descriptor(uint32_t index)
 {
@@ -197,6 +225,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 {
 	char *real_string = NULL;
 	int lv2_desc_index;
+	int lv2_handle_index;
 	DescAssoc *da = NULL;
 
 	// lookup the DescAssoc with this descripter pointer
@@ -236,11 +265,14 @@ instantiate(const LV2_Descriptor*     descriptor,
 	free(real_string);
 
 	// Associate the lisp_handle with a duck handle we're going to give to the
-	// TODO
+	// host.
 
-	// Find a free instance in the array and fill it, returning the
-	// pointer to the LV2_Descriptor in it.
-	return (LV2_Handle) NULL;
+	lv2_handle_index = allocate_new_lv2_handle();
+	associate_lv2_handle_to_lv2_desc(lv2_handle_index, 
+		lv2_desc_index, lisp_handle);
+
+	// Then, return the fake LV2_Handle to the host.
+	return get_lv2_handle_address(lv2_handle_index);
 }
 
 // Connect a port to a buffer (audio thread, must be RT safe).

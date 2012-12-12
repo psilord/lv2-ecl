@@ -23,12 +23,12 @@ int main(int argc, char **argv)
 	for (i = 0; i < num_descriptors; i++) {
 		// call the "entry point" to the plugin.
 		lv2_desc[i] = lv2_descriptor(i);
-		printf("LV2_Descriptor: %p\n", lv2_desc[i]);
+		printf("HOST: LV2_Descriptor: %p\n", lv2_desc[i]);
 		if (lv2_desc[i] == NULL) {
 			// Stop whenever the plugin wants us to stop or we hit the
 			// maximum number.
 			num_descriptors = i;
-			printf("Done getting %d descriptors!\n", num_descriptors);
+			printf("HOST: Done getting %d descriptors!\n", num_descriptors);
 			break;
 		}
 	}
@@ -45,22 +45,13 @@ int main(int argc, char **argv)
 			LV2_Handle *handle = phandles[i];
 			handle[j] = 
 			lv2_desc[i]->instantiate(lv2_desc[i], 2.4, "/some/path", NULL);
+			printf("HOST: Got instance %p from LV2_Descriptor %p\n",
+				handle[j], phandles[i]);
 		}
 	}
 
 
-	/* 
-
-	// test execute something out of the library we just initialized
-	cl_object num3 = cl_funcall(3,c_string_to_object("doit"),
-		MAKE_FIXNUM(10), MAKE_FIXNUM(20));
-
-	cl_princ(1, num3);
-	cl_princ(1, c_string_to_object("#\\Newline"));
-
-	*/
-
-	printf("Shutting it all down.\n");
+	printf("HOST: Shutting it all down.\n");
 	cl_shutdown();
 
 	return EXIT_SUCCESS;
