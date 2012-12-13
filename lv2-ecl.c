@@ -173,10 +173,15 @@ static void associate_lv2_handle_to_lv2_desc(int lv2_handle_index,
 }
 
 // This is the thing we end up giving back to the host which we use to 
-// identify the instance later.
+// identify the instance and its association later.
 static LV2_Handle get_lv2_handle_address(int index) 
 {
 	return g_hdassoc[index].handle;
+}
+
+static HandleDescAssoc* get_handle_assoc_at_index(int index)
+{
+	return &g_hdassoc[index];
 }
 
 // ///////////////////////////////////////////////////////////////////////
@@ -227,13 +232,15 @@ instantiate(const LV2_Descriptor*     descriptor,
 	int lv2_desc_index;
 	int lv2_handle_index;
 	DescAssoc *da = NULL;
+	LV2_Handle ret;
+
 
 	// lookup the DescAssoc with this descripter pointer
 	lv2_desc_index = get_lv2_desc_index(descriptor);
 	da = get_desc_assoc_at_index(lv2_desc_index);
 
-	printf("Instantiate for LV2_Desc called:\n"
-		"\tdesc_index = %d\n"
+	printf("C: instantiate() for LV2_Desc called:\n"
+		"\tlv2_desc_index = %d\n"
 		"\tdescriptor = %p\n"
 		"\trate = %f\n"
 		"\tbundle path = %s\n"
@@ -272,7 +279,11 @@ instantiate(const LV2_Descriptor*     descriptor,
 		lv2_desc_index, lisp_handle);
 
 	// Then, return the fake LV2_Handle to the host.
-	return get_lv2_handle_address(lv2_handle_index);
+
+	ret = get_lv2_handle_address(lv2_handle_index);
+
+
+	return ret;
 }
 
 // Connect a port to a buffer (audio thread, must be RT safe).
@@ -281,7 +292,13 @@ connect_port(LV2_Handle instance,
              uint32_t   port,
              void*      data)
 {
+	int lv2_handle_index;
+	HandleDescAssoc *handle_assoc = NULL;
+
 	ecl_import_current_thread(ECL_NIL, ECL_NIL);
+
+	// reverse map the handle back to a pointer to the HandleDesc
+	// handle_assoc = get_handle_desc_address(instance);
 
 	// stuff
 
