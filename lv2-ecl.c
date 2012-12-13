@@ -94,7 +94,7 @@ static void initialize_ecl(void)
 // search the g_plassoc table and return me an index into the
 // AssocDesc association array, or 
 // 
-static int allocate_new_lv2_descriptor(void)
+static int da_allocate(void)
 {
 	int i;
 
@@ -108,20 +108,20 @@ static int allocate_new_lv2_descriptor(void)
 	return NONE;
 }
 
-static void associate_lv2_and_lisp_descs(int index, cl_object lisp_obj)
+static void da_associate(int index, cl_object lisp_obj)
 {
 	/* XXX bitwise copy, can I do that to a cl_object correctly? */
 	g_plassoc[index].lisp_lv2_desc = lisp_obj;
 }
 
 // given an index, return the address of the lv2 descriptor from there.
-static LV2_Descriptor* get_lv2_desc_address(int index)
+static LV2_Descriptor* da_get_address(int index)
 {
 	return &g_plassoc[index].lv2_desc;
 }
 
 // given a lv2_desc pointer, return the index associated with it.
-static int get_lv2_desc_index(const LV2_Descriptor *lv2_desc)
+static int da_get_index(const LV2_Descriptor *lv2_desc)
 {
 	int i;
 
@@ -134,7 +134,7 @@ static int get_lv2_desc_index(const LV2_Descriptor *lv2_desc)
 	return NONE;
 }
 
-static DescAssoc* get_desc_assoc_at_index(int index)
+static DescAssoc* da_get_da(int index)
 {
 	return &g_plassoc[index];
 }
@@ -144,7 +144,7 @@ static DescAssoc* get_desc_assoc_at_index(int index)
 // ///////////////////////////////////////////////////////////////////////
 
 // return an index to a usable HandleDescAssoc structure.
-static int allocate_new_lv2_handle(void)
+static int hda_allocate(void)
 {
 	int i;
 
@@ -161,7 +161,7 @@ static int allocate_new_lv2_handle(void)
 // This is so when the host give us just a handle, we can figure out which
 // lv2_descriptor's instantiate method created it so we can trampoline it
 // to the correct lisp function.
-static void associate_lv2_handle_to_lv2_desc(int lv2_handle_index, 
+static void hda_associate(int lv2_handle_index, 
 		int lv2_desc_index, cl_object lisp_handle)
 {
 	HandleDescAssoc *hda = NULL;
@@ -174,12 +174,12 @@ static void associate_lv2_handle_to_lv2_desc(int lv2_handle_index,
 
 // This is the thing we end up giving back to the host which we use to 
 // identify the instance and its association later.
-static LV2_Handle get_lv2_handle_address(int index) 
+static LV2_Handle hda_get_address(int index) 
 {
 	return g_hdassoc[index].handle;
 }
 
-static HandleDescAssoc* get_handle_assoc_at_index(int index)
+static HandleDescAssoc* hda_get_hda(int index)
 {
 	return &g_hdassoc[index];
 }
@@ -191,7 +191,7 @@ static HandleDescAssoc* get_handle_assoc_at_index(int index)
 const LV2_Descriptor*
 lv2_descriptor(uint32_t index)
 {
-	int desc_index;
+	int lv2_desc_index;
 
 	initialize_plugin_internals();
 	initialize_ecl();
@@ -213,11 +213,11 @@ lv2_descriptor(uint32_t index)
 	}
 
 	// Associate the lisp description with a C address of a real LV2_Descriptor
-	desc_index = allocate_new_lv2_descriptor();
-	associate_lv2_and_lisp_descs(desc_index, obj);
+	lv2_desc_index = da_allocate();
+	da_associate(lv2_desc_index, obj);
 
 	// The application will use this to talk about this specific plugin.
-	return get_lv2_desc_address(desc_index);
+	return da_get_address(lv2_desc_index);
 }
 
 
@@ -236,8 +236,8 @@ instantiate(const LV2_Descriptor*     descriptor,
 
 
 	// lookup the DescAssoc with this descripter pointer
-	lv2_desc_index = get_lv2_desc_index(descriptor);
-	da = get_desc_assoc_at_index(lv2_desc_index);
+	lv2_desc_index = da_get_index(descriptor);
+	da = da_get_da(lv2_desc_index);
 
 	printf("C: instantiate() for LV2_Desc called:\n"
 		"\tlv2_desc_index = %d\n"
@@ -274,14 +274,13 @@ instantiate(const LV2_Descriptor*     descriptor,
 	// Associate the lisp_handle with a duck handle we're going to give to the
 	// host.
 
-	lv2_handle_index = allocate_new_lv2_handle();
-	associate_lv2_handle_to_lv2_desc(lv2_handle_index, 
+	lv2_handle_index = hda_allocate();
+	hda_associate(lv2_handle_index, 
 		lv2_desc_index, lisp_handle);
 
 	// Then, return the fake LV2_Handle to the host.
 
-	ret = get_lv2_handle_address(lv2_handle_index);
-
+	ret = hda_get_address(lv2_handle_index);
 
 	return ret;
 }

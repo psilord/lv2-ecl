@@ -47,12 +47,12 @@ typedef struct _HandleDescAssoc
 	// it to remap the handle back to the lisp_handle and the lv2_desc_index.
 	LV2_Handle handle;
 
-	// The real handle as returned from the lisp plguin.
+	// The real instance handle as returned from the lisp plguin.
 	cl_object lisp_handle;
 
 } HandleDescAssoc;
 
-// prototypes
+// Needed plugin prototypes
 const LV2_Descriptor* lv2_descriptor(uint32_t index);
 static LV2_Handle instantiate(const LV2_Descriptor *descriptor, 
 		double rate, const char* bundle_path,
@@ -63,7 +63,16 @@ static void run(LV2_Handle instance, uint32_t n_samples);
 static void deactivate(LV2_Handle instance);
 static void cleanup(LV2_Handle instance);
 static const void* extension_data(const char* uri);
-static void associate_lv2_and_lisp_descs(int index, cl_object lisp_obj);
-static LV2_Descriptor* get_lv2_desc_address(int index);
+
+// Stuff internal to the plugin
+
+// Stuff to mess with the DescAssoc
+static int da_allocate(void);
+static void da_associate(int index, cl_object lisp_obj);
+static LV2_Descriptor* da_get_address(int index);
 
 #endif 
+
+
+
+
